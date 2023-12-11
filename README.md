@@ -1,16 +1,13 @@
-### Hi there 👋
+# StarkPepe ERC20 Token
 
-<!--
-**starkpepe/starkpepe** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Welcome to the official repository of StarkPepe, the ERC20 token implemented in Cairo for the StarkNet ecosystem. StarkPepe is designed with an innovative feature that ensures equitable distribution by limiting the maximum wallet balance to 1% of the total token supply.
 
-Here are some ideas to get you started:
+## Features
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+- ERC20 compatibility: StarkPepe implements the standard ERC20 interface.
+- Wallet Balance Limit: Ensures no wallet can hold more than 1% of the total supply to promote a decentralized token distribution.
+- StarkNet Security: Leverages the decentralized, secure, and scalable StarkNet blockchain.
+
+## Getting Started
+
+To interact with the StarkPepe token, you'll need to set up your StarkNet development environment. Follow the steps below to get started:
