@@ -1,0 +1,13 @@
+[package]
+name = "starkpepe"
+version = "0.1.0"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[cairo]
+sierra-replace-ids = true
+
+[dependencies]
+starknet = ">=2.3.1"
