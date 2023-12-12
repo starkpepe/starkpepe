@@ -1,11 +1,12 @@
 #[starknet::contract]
 mod ERC20 {
-    use core::option::OptionTrait;
-use core::traits::TryInto;
-use integer::BoundedInt;
+    use option::OptionTrait;
+    use traits::TryInto;
+    use integer::BoundedInt;
     use starknet::ContractAddress;
     use starknet::{get_caller_address, get_contract_address, get_block_timestamp};
     use zeroable::Zeroable;
+    use debug::PrintTrait;
 
     use starkpepe::token::interface::{
         token::{IERC20, IERC20Dispatcher, IERC20DispatcherTrait},
@@ -21,7 +22,7 @@ use integer::BoundedInt;
         _allowances: LegacyMap<(ContractAddress, ContractAddress), u256>,
         owner: ContractAddress,
         hodl_limit: bool,
-        pool_address: ContractAddress,
+        pool_addresses: LegacyMap<ContractAddress, bool>,
     }
 
     #[event]
@@ -47,6 +48,7 @@ use integer::BoundedInt;
 
     const MAX_SUPPLY: u256 = 42_000_000_000_000000000000000000;
     const JEDI_ROUTER: felt252 = 0x041fd22b238fa21cfcf5dd45a8548974d8263b3a531a60388411c5e230f97023;
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -68,7 +70,6 @@ use integer::BoundedInt;
     //
     // External
     //
-    use debug::PrintTrait;
 
     #[abi(embed_v0)]
     impl ERC20Impl of IERC20<ContractState> {
@@ -144,16 +145,19 @@ use integer::BoundedInt;
 
         fn withdraw_other(ref self: ContractState, amount: u256, receiver: ContractAddress, token: ContractAddress) {
             assert(get_caller_address() == self.owner.read(), 'ERC20: not owner');
+
             IERC20Dispatcher{contract_address: token}.transfer(receiver, amount);
         }
 
-        fn set_pool(ref self: ContractState, pool_address: ContractAddress) {
+        fn add_pool(ref self: ContractState, pool_address: ContractAddress) {
             assert(get_caller_address() == self.owner.read(), 'ERC20: not owner');
-            self.pool_address.write(pool_address);
+
+            self._add_pool(:pool_address);
         }
 
         fn set_hodl_limit(ref self: ContractState, hodl_limit: bool) {
             assert(get_caller_address() == self.owner.read(), 'ERC20: not owner');
+
             self.hodl_limit.write(hodl_limit);
         }
 
@@ -208,6 +212,11 @@ use integer::BoundedInt;
             self.owner.write(owner);
             self.hodl_limit.write(true);
             self._mint(recipient, initial_supply);
+            self._add_pool(pool_address: JEDI_ROUTER.try_into().unwrap());
+        }
+
+        fn _add_pool(ref self: ContractState, pool_address: ContractAddress) {
+            self.pool_addresses.write(pool_address, true);
         }
 
         fn _increase_allowance(
@@ -232,16 +241,11 @@ use integer::BoundedInt;
         fn _mint(ref self: ContractState, recipient: ContractAddress, amount: u256) {
             assert(!recipient.is_zero(), 'ERC20: mint to 0');
             assert(self._total_supply.read() + amount <= MAX_SUPPLY, 'ERC20: exceed total supply');
+
             self._total_supply.write(self._total_supply.read() + amount);
             self._balances.write(recipient, self._balances.read(recipient) + amount);
-            self.emit(Transfer { from: Zeroable::zero(), to: recipient, value: amount });
-        }
 
-        fn _burn(ref self: ContractState, account: ContractAddress, amount: u256) {
-            assert(!account.is_zero(), 'ERC20: burn from 0');
-            self._total_supply.write(self._total_supply.read() - amount);
-            self._balances.write(account, self._balances.read(account) - amount);
-            self.emit(Transfer { from: account, to: Zeroable::zero(), value: amount });
+            self.emit(Transfer { from: Zeroable::zero(), to: recipient, value: amount });
         }
 
         fn _approve(
@@ -249,7 +253,9 @@ use integer::BoundedInt;
         ) {
             assert(!owner.is_zero(), 'ERC20: approve from 0');
             assert(!spender.is_zero(), 'ERC20: approve to 0');
+
             self._allowances.write((owner, spender), amount);
+
             self.emit(Approval { owner, spender, value: amount });
         }
 
@@ -261,12 +267,23 @@ use integer::BoundedInt;
         ) {
             assert(!sender.is_zero(), 'ERC20: transfer from 0');
             assert(!recipient.is_zero(), 'ERC20: transfer to 0');
-            let owner = self.owner.read();
-            self._balances.write(sender, self._balances.read(sender) - amount);
-            self._balances.write(recipient, self._balances.read(recipient) + amount);
-            if (self.hodl_limit.read() && sender != owner && (recipient != self.pool_address.read() || recipient != JEDI_ROUTER.try_into().unwrap())) {
-                assert(self.balance_of(recipient) <= self.total_supply() / 100, 'hodl limit active, 1% max');
+
+            let sender_balance = self._balances.read(sender) - amount;
+            let recipient_balance = self._balances.read(recipient) + amount;
+
+            // hodl limit check
+            let is_owner = self.owner.read() == sender;
+            let is_hodl_limit_enabled = self.hodl_limit.read();
+
+            if (is_hodl_limit_enabled && !is_owner && !self.pool_addresses.read(recipient)) {
+                assert(recipient_balance <= self.total_supply() / 100, 'hodl limit active, 1% max');
             }
+
+            // balances update
+            self._balances.write(sender, sender_balance);
+            self._balances.write(recipient, recipient_balance);
+
+            // transfer event
             self.emit(Transfer { from: sender, to: recipient, value: amount });
         }
 
@@ -274,6 +291,7 @@ use integer::BoundedInt;
             ref self: ContractState, owner: ContractAddress, spender: ContractAddress, amount: u256
         ) {
             let current_allowance = self._allowances.read((owner, spender));
+
             if current_allowance != BoundedInt::max() {
                 self._approve(owner, spender, current_allowance - amount);
             }

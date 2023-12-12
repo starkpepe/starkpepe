@@ -19,6 +19,6 @@ trait IERC20<TState> {
     ) -> bool;
     fn approve(ref self: TState, spender: ContractAddress, amount: u256) -> bool;
     fn withdraw_other(ref self: TState, amount: u256, receiver: ContractAddress, token: ContractAddress);
-    fn set_pool(ref self: TState, pool_address: ContractAddress);
+    fn add_pool(ref self: TState, pool_address: ContractAddress);
     fn set_hodl_limit(ref self: TState, hodl_limit: bool);
 }
